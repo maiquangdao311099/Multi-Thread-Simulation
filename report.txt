@@ -1,0 +1,137 @@
+Dao Mai - 1575296
+
+Programming Project Report
+
+I.Problem
+
+In this project, I would simulate the synchronization mechanism used in multiprocessing. The requirement is to build a Wait and Signal synchronization model combined with an integer flag called semaphore. More specifically, my professor gave me the idea to solve a famous problem called "producers and consumers" using multithreaded programming. To be able to build this program, I had to learn more about multi-threaded programming. Luckily, I've worked with single-threaded programs before, so the learning went pretty smoothly. However, the actual implementation was not done so easily. I ran into certain difficulties before I found my solution.
+
+II. Solution
+
+1. Critical sections and Semaphores
+
+First, to be able to implement the synchronization mechanism, I had to create values ​​and objects that both processes could access and modify, not at the same time, of course. In other words, I simulated the critical section with a linked list named buffer, which is an implementation of the java.until.LinkedList class. All the three semaphores and critical section were created in form of static variables. I used static variables as they could be used to reference properties common to both producer and consumer. As long as one of the two processes changes the value of these variables, the other process will also be affected by that change.
+
+public static final int capacity = 10;    
+public static int mutex = 1;
+public static int empty = capacity;
+public static int full = 0;
+public static LinkedList<Integer> buffer = new LinkedList<>();
+
+2. Producer and Consumer
+
+I wanted to encapsulate the program in one file instead of having to use a separate file for each thread, so I decided to use anonymous threads that are declared and used right in the main function. So both producer and consumer are instances of an anonymous class that inherits from Thread class. 
+
+Thread producer = new Thread() {
+	public void run(){
+	......
+	}
+};
+
+Thread consumer = new Thread() {
+  	public void run() {
+	......
+	}
+};
+
+The problem requires these two processes to work together on a buffer with 10 slots. At first I tried using an array of length 10 to simulate the buffer but this was not convenient. So I decided to use the linked list data structure for the buffer as mentioned in the previous section. The benefit of this is that I could easily control the production location as well as the consumption location of the 2 processes in the buffer. The producer would always put the item into the last position and the consumer would always take the item out from the first position.
+
+Producer: buffer.add(itemProduce);
+
+Consumer: buffer.removeFirst();
+
+
+Because the capacity of a linked list is unlimited, my program must always keep track of the number of elements in the buffer. producer can only resume producing when buffer.size() is less than capacity, which is 10.
+
+Besides, always inserting the item at the last position in the buffer also caused me to simulate a virtual position that runs from 0 to 9 then repeats. Same goes for the consumer, even though it always gets the first element in the linked list to be able to guarantee FIFO ordering, I also need a similar virtual position to simulate a 10 slot buffer. Those 2 virtual locations will always be initialized as 0.
+
+Producer:
+insertion = 0;
+insertion = (insertion + 1) % 10;
+
+Consumer:
+retrieval = 0;
+retrieval = (retrieval + 1) % 10;
+
+
+The generated item will also run from 0 to 14 so I use the same method to simulate the producer's item.
+
+Producer: 
+itemProduce = 0;
+itemProduce = (itemProduce + 1) % 15;
+
+
+3. Mutual exclusion
+
+I simulated all three semaphores such that only one process can access them at the same time. Before entering the critical section, each process must check the mutex value to see if it is locked. If no other process is accessing the buffer, the current process will be allowed to access and modify the data, then it would unlock the mutex only after completing its work. I wrote a simple P method that has return type as a boolean value, it will check if the semaphore is ready to be used and also give control to the calling process by decreasing the semaphore.
+
+public static boolean P (int Semaphores){
+        if (Semaphores > 0){
+            Semaphores--;
+            return true;
+        }else
+            return false;
+    }
+....
+producer:
+	if(P(mutex)){
+		P(empty);
+		buffer.add(itemProduce);
+	}
+
+The same goes for the rest of the semaphores. In the critical section, producer will decrease "empty" and increase "full", consumer will increase "empty" and decrease "full".
+
+4. Timer
+my professor suggested to me to use the System.currentTimeMillis() method to get access to the current timestamp. This way I can also control how long it takes for the program to run by keeping a record of the time when the program started and continuously comparing it to the current time. The return type of the method is long so I use a long variable to store that timestamp.
+
+long startTime = System.currentTimeMillis();
+while((System.currentTimeMillis() - startTime) < 15000){
+....//run the thread
+}
+
+Besides controlling the above time intervals, the problem also requires producer and consumer to wait for random periods between 10 and 100 milliseconds. So I used the random class to generate a random number with a range from 0 to 90 and add that value to 10, so I receiced a range from 10 to 100.
+
+Thread.sleep(random.nextInt(91) + 10)
+
+
+5. File export
+
+To be able to generate the producer.txt and consumer.txt files, I had to use objects of the FileWriter and PrintWriter classes. I created an instance of FileWriter by passing in a string parameter that is the name of the file. Then use another PrintWriter object to write data to that file. Since we need to write to a separate file for each process, I need a FileWriter and a PrintWriter for each.
+
+FileWriter producerFile = new FileWriter("producer.txt");
+PrintWriter producerPrint = new PrintWriter(producerFile);
+
+FileWriter consumerFile = new FileWriter("consumer.txt");
+PrintWriter consumerPrint = new PrintWriter(consumerFile);
+
+I did not add a specific address path to the FileWriter constructor parameter because this program would probably run on different computers with different directories. The generated file will be in the default project directory.
+
+Then in each loop in the run() method of each process, we print a new line to the file with the corresponding information.
+
+producerPrint.println(System.currentTimeMillis()+ ", Placing " + itemProduce + 
+                                   " in the buffer location " + insertion + ".");
+
+consumerPrint.println(System.currentTimeMillis()+ ", Consuming " + itemConsume + 
+                                   " in the buffer location " + retrieval + ".");
+
+III. Result
+
+The program has run according to the requirements of the topic. The two files consumer.txt and producer.txt were found in the default project directory after the code was compiled and executed successfully. Besides creating the files, I programmed both the producer and the consumer so that they can both print to the IDE terminal while the program is running. This way I can better observe the competition and randomness between the 2 threads. 
+
+I see that producer and consumer interleaved quite fairly on the terminal and there is no rule or order for the occurrence of both. There are no events happening at the same time. This is shown in the fact that the timestamp in each line is different. So I can say that both processes cannot enter the critical section at the same time.
+
+IV. Evaluation
+
+The most prominent error in the implementation of this project was about having only the producer working and the consumer freezing. Producer created 10 items and the buffer remains full for entire 15 seconds without any consumer consuming any items. I got this error when I just finished writing the program and compile it successfully. 
+
+After a while struggling with different solutions I have discovered that I have not properly simulated the mechanism of the 2 semaphores "empty" and "full". A little mistake can lead to the failure of the entire program. After that I quickly figured out how to fix the error and complete the program.
+
+Besides, I remember that I encountered a few minor syntax errors and I was able to fix them after going through previous courses documentation.
+
+
+
+
+
+
+
+
